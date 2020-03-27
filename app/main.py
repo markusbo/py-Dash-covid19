@@ -3,18 +3,22 @@ import dash
 import flask
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 
 
 app = flask.Flask(__name__)
-dash_app = dash.Dash(__name__, server = app, url_base_pathname = '/')
+dash_app = dash.Dash(
+    __name__, 
+    server = app, 
+    url_base_pathname = '/',
+    external_stylesheets=[dbc.themes.CERULEAN]
+    )
 
 df = pd.read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/' +
                  'master/csse_covid_19_data/csse_covid_19_time_series/' +
                  'time_series_covid19_confirmed_global.csv'
                 )
-
-dash_app.css.append_css({"external_url" : "https://codepen.io/chriddyp/pen/bWLwgP.css"})
 
 colors = {
     'background': '#111111',
@@ -23,8 +27,15 @@ colors = {
 
 countries = df['Country/Region'].unique()
 
+growthfactor = "test"
+
 dash_app.layout = html.Div(
     [
+        html.Div(
+            [
+                html.H1('Covid-19 Infected graph')
+            ]
+        ),
         html.Div(
             [
                 dcc.Dropdown(
@@ -34,6 +45,11 @@ dash_app.layout = html.Div(
                     #multi=True, 
                     placeholder='Filter by country...'
                 )
+            ]
+        ),
+        html.Div(
+            [
+                html.P(id='growthf')
             ]
         ),
         html.Div(
@@ -56,12 +72,7 @@ def create_time_series(dff, title):
         'layout': {
             'height': 500,
             'margin': {'l': 50, 'b': 70, 'r': 50, 't': 50},
-            'annotations': [{
-                'x': 0.1, 'y': 1, 'xanchor': 'left', 'yanchor': 'bottom',
-                'xref': 'paper', 'yref': 'paper', 'showarrow': False,
-                'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
-                'text': title
-            }],
+            'title' : title,
             'yaxis': {'type': 'linear'},
             'xaxis': {'showgrid': False}
         }
@@ -69,17 +80,20 @@ def create_time_series(dff, title):
 
 
 @dash_app.callback(
-    dash.dependencies.Output('x-time-series', 'figure'),
+    [dash.dependencies.Output('x-time-series', 'figure'),
+    dash.dependencies.Output('growthf', 'children')],
     [dash.dependencies.Input('dropdown', 'value')]
     )
 def update_timeseries(dropdown_value):
+    global growthfactor
     dff = df[df['Country/Region'] == dropdown_value]
 
     date = [col for col in dff.iloc[:,4:].head()]
     dff = pd.melt(dff, id_vars=['Country/Region'], value_vars=date)
 
     title = '<b>{}</b>'.format(dropdown_value)
-    return create_time_series(dff, title)
+    growthfactor = (dff['value'].iloc[-1] - dff['value'].iloc[-2]) / (dff['value'].iloc[-3] - dff['value'].iloc[-4])
+    return create_time_series(dff, title), ("Current Growth factor: " + str(round(growthfactor, 2)))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=80)
