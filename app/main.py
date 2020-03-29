@@ -15,9 +15,19 @@ dash_app = dash.Dash(
     external_stylesheets=[dbc.themes.CERULEAN]
     )
 
-df = pd.read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/' +
+dfInf = pd.read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/' +
                  'master/csse_covid_19_data/csse_covid_19_time_series/' +
                  'time_series_covid19_confirmed_global.csv'
+                )
+
+dfDeath = pd.read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/' +
+                 'master/csse_covid_19_data/csse_covid_19_time_series/' +
+                 'time_series_covid19_deaths_global.csv'
+                )
+
+dfRec = pd.read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/' +
+                 'master/csse_covid_19_data/csse_covid_19_time_series/' +
+                 'time_series_covid19_recovered_global.csv'
                 )
 
 colors = {
@@ -25,9 +35,7 @@ colors = {
     'text': '#7FDBFF'
 }
 
-countries = df['Country/Region'].unique()
-
-growthfactor = "test"
+countries = dfInf['Country/Region'].unique()
 
 dash_app.layout = html.Div(
     [
@@ -45,7 +53,7 @@ dash_app.layout = html.Div(
                     #multi=True, 
                     placeholder='Filter by country...'
                 )
-            ]
+            ], style={'width':150}
         ),
         html.Div(
             [
@@ -60,15 +68,34 @@ dash_app.layout = html.Div(
     ]
 )
 
-def create_time_series(dff, title):
+def create_time_series(dffInf, dffDeath, dffRec, title):
     return {
-        'data': [dict(
-            #x=dff['variable'],
-            x=dff[dff['value']>0]['variable'],
-            #y=dff['value'],
-            y=dff[dff['value']>0]['value'],
-            mode='lines+markers'
-        )],
+        'data': [
+            dict(
+                #x=dfInff['variable'],
+                x=dffInf[dffInf['value']>0]['variable'],
+                #y=dfInff['value'],
+                y=dffInf[dffInf['value']>0]['value'],
+                mode='lines+markers',
+                name='Infected'
+            ),
+            dict(
+                #x=dffDeath['variable'],
+                x=dffDeath[dffDeath['value']>0]['variable'],
+                #y=dffDeath['value'],
+                y=dffDeath[dffDeath['value']>0]['value'],
+                mode='lines+markers',
+                name='Deaths'
+            ),
+             dict(
+                #x=dffRec['variable'],
+                x=dffRec[dffRec['value']>0]['variable'],
+                #y=dffRec['value'],
+                y=dffRec[dffRec['value']>0]['value'],
+                mode='lines+markers',
+                name='Recovered'
+            )
+        ],
         'layout': {
             'height': 500,
             'margin': {'l': 50, 'b': 70, 'r': 50, 't': 50},
@@ -78,6 +105,9 @@ def create_time_series(dff, title):
         }
     }
 
+def set_date(dff):
+    date = [col for col in dff.iloc[:,4:].head()]
+    return (pd.melt(dff, id_vars=['Country/Region'], value_vars=date))
 
 @dash_app.callback(
     [dash.dependencies.Output('x-time-series', 'figure'),
@@ -85,15 +115,13 @@ def create_time_series(dff, title):
     [dash.dependencies.Input('dropdown', 'value')]
     )
 def update_timeseries(dropdown_value):
-    global growthfactor
-    dff = df[df['Country/Region'] == dropdown_value]
-
-    date = [col for col in dff.iloc[:,4:].head()]
-    dff = pd.melt(dff, id_vars=['Country/Region'], value_vars=date)
+    dffInf = set_date(dfInf[dfInf['Country/Region'] == dropdown_value].agg(['sum']))
+    dffDeath = set_date(dfDeath[dfDeath['Country/Region'] == dropdown_value].agg(['sum']))
+    dffRec = set_date(dfRec[dfRec['Country/Region'] == dropdown_value].agg(['sum']))
 
     title = '<b>{}</b>'.format(dropdown_value)
-    growthfactor = (dff['value'].iloc[-1] - dff['value'].iloc[-2]) / (dff['value'].iloc[-3] - dff['value'].iloc[-4])
-    return create_time_series(dff, title), ("Current Growth factor: " + str(round(growthfactor, 2)))
+    growthfactor = (dffInf['value'].iloc[-1] - dffInf['value'].iloc[-2]) / (dffInf['value'].iloc[-3] - dffInf['value'].iloc[-4])
+    return create_time_series(dffInf, dffDeath, dffRec, title), ("Current Infected Growth factor: " + str(round(growthfactor, 2)))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=80)
